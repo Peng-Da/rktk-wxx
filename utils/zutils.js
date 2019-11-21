@@ -1,5 +1,5 @@
-const BASE_URL = 'https://rk.chinaruankao.com/';
-//const BASE_URL = 'http://192.168.0.199:8180/rktk/';
+// const BASE_URL = 'https://rk.chinaruankao.com/';
+const BASE_URL = 'http://192.168.1.10:8000/zonghe/';
 
 const SLOW_TIMEOUT = 666
 
@@ -24,7 +24,7 @@ function z_get(app, url, call) {
   wx.request({
     url: BASE_URL + url,
     method: 'GET',
-    header: { wxxuid: wxxuid, xagent: 'wechat' },
+    header: { wxxuid: wxxuid, xagent: 'wechat', Authorization: app.GLOBAL_DATA.USER_INFO?'GX '+app.GLOBAL_DATA.USER_INFO.token:"token"},
     success: call || function (res) { },
     fail: function (res) {
       if (res.errMsg) {

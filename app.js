@@ -20,7 +20,8 @@ App({
     // 红点
     RED_DOT: {},
     // 运行模式
-    RUN_MODE: 0
+    RUN_MODE: 0,
+    USER_TOKEN: null
   },
 
   onLaunch: function(e) {
@@ -33,10 +34,12 @@ App({
       success: function(res) {
         console.log('用户信息: ' + JSON.stringify(res));
         that.GLOBAL_DATA.USER_INFO = res.data;
-        that.reportKpi('LOGIN', null, JSON.stringify(that.enterSource));
+        // that.reportKpi('LOGIN', null, JSON.stringify(that.enterSource));
       },
       fail: function() {
-        that.getUserInfo()
+        console.log('onLaunch-getStorage call app.getUserInfo()');
+        // that.getUserInfo()
+        
       },
       complete: function() {
         //that.reportKpi('LOGIN', null, JSON.stringify(that.enterSource));
@@ -62,18 +65,6 @@ App({
 
   onHide: function(e) {
     console.log("小程序进入后台: " + JSON.stringify(e));
-
-    // 新版微信已取消
-    // try {
-    //   wx.setTopBarText({
-    //     text: '正在答题，点击继续',
-    //     complete: function (res) {
-    //       console.log("setTopBarText - " + JSON.stringify(res));
-    //     }
-    //   });
-    // } catch (error) {
-    //   console.error("setTopBarText error - " + JSON.stringify(error));
-    // }
   },
 
   onError: function(e) {
@@ -86,53 +77,81 @@ App({
     this.gotoPage('/pages/index/index');
   },
 
-  // 需要授权才能访问的页面/资源先调用此方法
-  // 在回调函数中执行实际的业务操作
+  // 需要授权才能访问的页面/资源先调用此方法，在回调函数中执行实际的业务操作
   getUserInfo: function(cb, _retry) {
-    if (this.GLOBAL_DATA.USER_INFO) {
-      typeof cb == 'function' && cb(this.GLOBAL_DATA.USER_INFO)
-    } else {
-      let that = this;
-      _retry = _retry || 1;
-      if (that.__inLogin == true && _retry <= 10) {
-        console.log('已在登陆中 WAIT-' + _retry + ' ...')
-        setTimeout(function() {
-          that.getUserInfo(cb, _retry + 1);
-        }, 200 + (_retry * 20));
-        return;
-      }
-
-      that.__inLogin = true;
-      wx.login({
-        success: function(res) {
-          that.__storeUserInfo(res, cb);
-        }
-      })
+    let that = this
+    // 如果已有用户信息，则执行传入的function
+    if (that.GLOBAL_DATA.USER_INFO){
+      typeof cb == 'function' && cb(getApp().GLOBAL_DATA.USER_INFO)
+      return
     }
-  },
-  // 存储授权
-  __storeUserInfo: function(res, cb) {
-    console.log('存储授权 - ' + JSON.stringify(res))
-    let that = this;
-    let _data = {
-      code: res.code,
-      iv: res.iv || '',
-      data: res.encryptedData || ''
-    };
-    _data.enterSource = that.enterSource;
-    zutils.post(that, 'api/user/wxx-login', _data, function(res) {
-      that.GLOBAL_DATA.USER_INFO = res.data.data;
-      wx.setStorage({
-        key: 'USER_INFO',
-        data: that.GLOBAL_DATA.USER_INFO,
-        success: function() {
-          that.__inLogin = false;
-          that.reportKpi('LOGIN', null, JSON.stringify(that.enterSource));
+    // 如果没有用户信息，则先从本地读取
+    wx.getStorage({
+      key: 'USER_INFO',
+      success: function(res) {
+        console.log('userinfo--' + JSON.stringify(res.data))
+        that.GLOBAL_DATA.USER_INFO = res.data
+        typeof cb == 'function' && cb(getApp().GLOBAL_DATA.USER_INFO)        
+      },
+      // 本地没有用户信息则需要登录
+      fail:function(err){
+        _retry = _retry || 1;
+        if (that.__inLogin == true && _retry <= 10) {
+          console.log('已在登陆中 WAIT-' + _retry + ' ...')
+          setTimeout(function () {
+            that.getUserInfo(cb, _retry + 1);
+          }, 200 + (_retry * 20));
+          return;
         }
-      })
 
-      typeof cb == 'function' && cb(that.GLOBAL_DATA.USER_INFO);
-    });
+        that.__inLogin = true;
+        wx.login({
+          success: function (res) {
+            console.log('Login--' + JSON.stringify(res));
+            that.__storeUserInfo(res, cb);
+          }
+        })
+      }
+    })        
+  },
+  
+  // 存储授权
+  __storeUserInfo: function(loginres, cb) {
+    let that = this;
+    wx.getSetting({
+      success: function (res) {
+        if (res.authSetting['scope.userInfo']) {
+          console.log('已授权')
+          wx.getUserInfo({
+            success:function(infores){
+              console.log('getUserInfo--'+JSON.stringify(infores))
+              let _data = {
+                code: loginres.code,
+                data: infores
+              };
+              // _data.enterSource = that.enterSource;
+              zutils.post(that, 'u/wx/login/', _data, function (res) {
+                console.log('auth--'+JSON.stringify(res))
+                that.GLOBAL_DATA.USER_INFO = infores.userInfo;
+                that.GLOBAL_DATA.USER_INFO.token = res.data.payload.token
+                wx.setStorage({
+                  key: 'USER_INFO',
+                  data: that.GLOBAL_DATA.USER_INFO,
+                  success: function () {
+                    that.__inLogin = false;
+                  }
+                })
+                typeof cb == 'function' && cb(that.GLOBAL_DATA.USER_INFO);
+              });
+            }
+          })
+        } else {
+          console.log('去授权页')
+          getApp().gotoPage('/pages/index/auth')
+        }
+      }
+    })
+    
   },
 
   // 20180514: 新版授权。授权成功后返回当前页面，因此不具备回调方法执行能力

@@ -20,25 +20,42 @@ Page({
   },
 
   storeUserInfo: function (e) {
-    let res = e.detail;
-    if (res.errMsg != 'getUserInfo:ok') {
+    let info_res = e.detail;
+    if (info_res.errMsg != 'getUserInfo:ok') {
       this.setData({ authText: '重新授权' })
       return;
     }
     this.setData({ authText: '请稍后', authActive: false })
-    console.log('存储授权 - ' + JSON.stringify(res));
-
+    console.log('存储info - ' + JSON.stringify(info_res));
     let that = this;
-    let _data = { code: that.__loginCode, iv: res.iv, data: res.encryptedData };
-    zutils.post(app, 'api/user/wxx-login?noloading', _data, function (res) {
-      app.GLOBAL_DATA.USER_INFO = res.data.data;
+    let _data = {
+      code: that.__loginCode,
+      data: info_res
+    };
+    zutils.post(that, 'u/wx/login/', _data, function (res) {
+      console.log('auth--' + JSON.stringify(res))
+      app.GLOBAL_DATA.USER_INFO = info_res.userInfo;
+      app.GLOBAL_DATA.USER_INFO.token = res.data.token
       wx.setStorage({
-        key: 'USER_INFO', data: app.GLOBAL_DATA.USER_INFO,
+        key: 'USER_INFO',
+        data: app.GLOBAL_DATA.USER_INFO,
         success: function () {
           if (that.nexturl == 'back') wx.navigateBack()
           else app.gotoPage(that.nexturl, true)
         }
-      });
+      })
+
+    
+    // let _data = { code: that.__loginCode, iv: res.iv, data: res.encryptedData };
+    // zutils.post(app, 'api/user/wxx-login?noloading', _data, function (res) {
+    //   app.GLOBAL_DATA.USER_INFO = res.data.data;
+    //   wx.setStorage({
+    //     key: 'USER_INFO', data: app.GLOBAL_DATA.USER_INFO,
+    //     success: function () {
+    //       if (that.nexturl == 'back') wx.navigateBack()
+    //       else app.gotoPage(that.nexturl, true)
+    //     }
+    //   });
     });
   },
 

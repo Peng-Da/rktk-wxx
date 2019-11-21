@@ -24,6 +24,7 @@ Page({
 
     const that = this
 
+    
     app.getUserInfo(function (u) {
       that.__loadComdata()
       that.__loadRecent()
